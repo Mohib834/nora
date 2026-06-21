@@ -1,0 +1,66 @@
+from dotenv import load_dotenv
+load_dotenv()
+
+from langchain_core.messages import HumanMessage, AIMessage, AIMessageChunk
+from agent.graph import app
+from rich.console import Console
+from rich.status import Status
+
+console = Console()
+
+NODE_LABELS = {
+    "classifier": "analyzing request",
+    "planner": "generating plan",
+    "executor": "running tool",
+    "responder": "responding",
+}
+
+def main():
+    messages = []
+    while True:
+        user_input = input("You: ")
+        messages.append(HumanMessage(content=user_input))
+
+        response_content = ""
+        responder_started = False
+        status = Status("", console=console)
+        status.start()
+
+        for stream_mode, data in app.stream(
+            {"messages": messages},
+            stream_mode=["messages", "updates"],
+        ):
+            if stream_mode == "updates" and isinstance(data, dict):
+                node = list(data.keys())[0]
+                if node != "responder":
+                    label = NODE_LABELS.get(node, node)
+                    if node == "executor":
+                        tool_name = data[node].get("current_tool", "")
+                        label = f"running tool: {tool_name}"
+                    status.update(f"[dim]{label}...[/dim]")
+
+            elif stream_mode == "messages":
+                chunk, metadata = data
+                if (
+                    isinstance(chunk, AIMessageChunk)
+                    and chunk.content
+                    and isinstance(metadata, dict)
+                    and metadata.get("langgraph_node") == "responder"
+                ):
+                    if not responder_started:
+                        status.stop()
+                        console.print("[bold]Nora:[/bold] ", end="")
+                        responder_started = True
+                    print(chunk.content, end="", flush=True)
+                    response_content += str(chunk.content)
+
+        try:
+            status.stop()
+        except Exception:
+            pass
+
+        print()
+        messages.append(AIMessage(content=response_content))
+
+if __name__ == "__main__":
+    main()
