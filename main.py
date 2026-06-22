@@ -1,10 +1,11 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from langchain_core.messages import HumanMessage, AIMessage, AIMessageChunk
+from langchain_core.messages import HumanMessage, AIMessageChunk
 from agent.graph import app
 from rich.console import Console
 from rich.status import Status
+
 
 console = Console()
 
@@ -16,10 +17,10 @@ NODE_LABELS = {
 }
 
 def main():
-    messages = []
+    thread_id = 'thread-1'
+
     while True:
         user_input = input("You: ")
-        messages.append(HumanMessage(content=user_input))
 
         response_content = ""
         responder_started = False
@@ -27,7 +28,12 @@ def main():
         status.start()
 
         for stream_mode, data in app.stream(
-            {"messages": messages},
+            {"messages": [HumanMessage(content=user_input)]},
+            config={
+                "configurable": {
+                    "thread_id": thread_id
+                }
+            },
             stream_mode=["messages", "updates"],
         ):
             if stream_mode == "updates" and isinstance(data, dict):
@@ -60,7 +66,6 @@ def main():
             pass
 
         print()
-        messages.append(AIMessage(content=response_content))
 
 if __name__ == "__main__":
     main()

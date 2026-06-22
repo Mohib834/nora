@@ -1,4 +1,7 @@
+import os
+import sqlite3
 from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.sqlite import SqliteSaver
 from .state import AgentState
 from .nodes.classifier import classifier_node
 from .nodes.planner import planner_node
@@ -18,4 +21,7 @@ graph.add_edge("classifier", "planner")
 graph.add_conditional_edges("planner", should_continue)
 graph.add_conditional_edges("executor", should_continue)
 
-app = graph.compile()
+os.makedirs("data", exist_ok=True)
+conn = sqlite3.connect("data/nora.db", check_same_thread=False)
+checkpointer = SqliteSaver(conn)
+app = graph.compile(checkpointer=checkpointer)

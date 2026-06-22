@@ -34,6 +34,7 @@ def planner_node(state: AgentState) -> PlannerOutput:
         - Only use capabilities from the list above
         - Think step by step about what is needed to fulfill the request
         - If the request needs no external action (e.g. simple Q&A, math, writing, general knowledge), return an empty array
+        - Any question about Nora's own capabilities, tools, or limitations MUST use the introspect capability — never answer from general knowledge
         - Keep steps minimal — don't add steps that aren't necessary
         - Output raw JSON only, no explanation
 
@@ -47,5 +48,9 @@ def planner_node(state: AgentState) -> PlannerOutput:
         }
     ])
 
-    plan = json.loads(result_json) if result_json else []
+    try:
+        clean = (result_json or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        plan = json.loads(clean) if clean else []
+    except json.JSONDecodeError:
+        plan = []
     return PlannerOutput(plan=plan)
