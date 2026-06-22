@@ -33,7 +33,7 @@ def planner_node(state: AgentState) -> PlannerOutput:
         Rules:
         - Only use capabilities from the list above
         - Think step by step about what is needed to fulfill the request
-        - If the request needs no external action (e.g. simple Q&A, math, writing), return an empty array
+        - If the request needs no external action (e.g. simple Q&A, math, writing, general knowledge), return an empty array
         - Keep steps minimal — don't add steps that aren't necessary
         - Output raw JSON only, no explanation
 
@@ -48,5 +48,4 @@ def planner_node(state: AgentState) -> PlannerOutput:
     ])
 
     plan = json.loads(result_json) if result_json else []
-        
     return PlannerOutput(plan=plan)

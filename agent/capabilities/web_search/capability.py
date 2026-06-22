@@ -1,7 +1,8 @@
 from .tools import search_web
+from ..types import Capability
 
-CAPABILITY = {
-    "name": "web_search",
-    "description": "Search the internet for up-to-date information",
-    "tools": [search_web]
-}
+CAPABILITY = Capability(
+    name='web_search', 
+    description='Search the internet for up-to-date information', 
+    tools=[search_web] 
+)
