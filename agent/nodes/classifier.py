@@ -1,22 +1,23 @@
 import json
+from typing import TypedDict
 
 from ..state import AgentState
 from utils.openai import get_llm_answer
 from config.settings import DEFAULT_MODEL
-from typing import TypedDict
+
 
 class ClassifierOutput(TypedDict):
     planner_model: str
     responder_model: str
 
-def classifier_node(state: AgentState) -> ClassifierOutput:
-    """ Classifies request complexity and assigns model tiers to state """
 
+def classifier_node(state: AgentState) -> ClassifierOutput:
     last_msg_content = state['messages'][-1].content
 
     result_json = get_llm_answer('gpt-4o-mini', [
-        {"role": 'system',
-         "content": f'''
+        {
+            "role": 'system',
+            "content": f'''
             Classify the user's request and assign the appropriate model tier for each stage.
 
             Model tiers:
@@ -38,7 +39,7 @@ def classifier_node(state: AgentState) -> ClassifierOutput:
 
             Output raw JSON only. No explanation.
             '''
-         }
+        }
     ])
 
     if not result_json:
@@ -48,9 +49,5 @@ def classifier_node(state: AgentState) -> ClassifierOutput:
 
     return ClassifierOutput(
         planner_model=result['planner_model'],
-        responder_model=result['responder_model']
+        responder_model=result['responder_model'],
     )
-
-    
-
-

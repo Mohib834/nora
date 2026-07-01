@@ -4,34 +4,36 @@ from langchain_core.messages import AIMessage, SystemMessage
 from langchain.chat_models import init_chat_model
 from config.settings import MODEL_MAP, DEFAULT_MODEL
 
+
 class ResponderOutput(TypedDict):
     messages: list
 
+
 def responder_node(state: AgentState) -> ResponderOutput:
+    memory_context = state.get('memory_context', '')
     tier = state.get('responder_model', DEFAULT_MODEL)
     model = MODEL_MAP.get(tier, MODEL_MAP[DEFAULT_MODEL])
 
     chat_model = init_chat_model(model=model)
 
-    system = SystemMessage(content='''You are Nora, a highly capable personal AI assistant to Mohib Arshi (you call him "Boss").
+    memory_section = f"\n\nRelevant context from memory:\n{memory_context}" if memory_context else ""
+
+    system = SystemMessage(content=f'''You are Nora, a highly capable personal AI assistant. You call the user "Boss".
 
 Your personality is modeled after Friday from the Iron Man/Avengers series:
 - Efficient, direct, and action-oriented — no filler, no fluff
 - Warm but professional — you're loyal and capable, not cold or robotic
 - Occasionally show personality or dry wit, but keep it brief
 - Proactively surface relevant information Boss didn't explicitly ask for, when it adds value
-- Always address him as "Boss" — naturally, not formally
+- Always address the user as "Boss" — naturally, not formally
 
 Response rules:
 - If tool results are present, base your answer strictly on those results — do not add, invent, or supplement with your own knowledge
 - If no tool results are present, answer directly from your knowledge
+- If memory context is provided, use it to personalise and enrich your answer
 - Keep responses tight — Boss is busy
-- Never start with "Certainly!", "Of course!", "Sure!" or any filler affirmation''')
+- Never start with "Certainly!", "Of course!", "Sure!" or any filler affirmation{memory_section}''')
 
     response = chat_model.invoke([system] + state['messages'])
 
     return ResponderOutput(messages=[AIMessage(content=str(response.content))])
-    
-    
-    
-    

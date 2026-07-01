@@ -1,8 +1,8 @@
 import json
-from ..state import AgentState
 from typing import TypedDict
+
+from ..state import AgentState
 from utils.openai import get_llm_answer
-from config.settings import MODEL_MAP, DEFAULT_MODEL
 from ..capabilities.registry import ALL_CAPABILITIES
 
 
@@ -10,47 +10,65 @@ class PlanStep(TypedDict):
     capability: str
     input: str
 
+
 class PlannerOutput(TypedDict):
+    responder_model: str
     plan: list[PlanStep]
 
+
 def planner_node(state: AgentState) -> PlannerOutput:
-    tier = state.get('planner_model', DEFAULT_MODEL)
-    model = MODEL_MAP.get(tier, MODEL_MAP[DEFAULT_MODEL])
-    last_msg = state['messages'][-1].content
+    recent_messages = state['messages'][-6:]
+    conversation = "\n".join(
+        f"{'User' if m.type == 'human' else 'Nora'}: {m.content}"
+        for m in recent_messages
+    )
 
     capabilities_str = "\n".join(
         f"- {c['name']}: {c['description']}" for c in ALL_CAPABILITIES
     )
 
-    result_json = get_llm_answer(model, [
+    result_json = get_llm_answer('gpt-4o-mini', [
         {
-         'role': 'system',
-         'content': f"""You are Nora's planning module — the internal reasoning layer for a personal AI assistant serving Mohib Arshi (Boss). Analyze the request and produce a structured execution plan.
+            'role': 'system',
+            'content': f"""You are Nora's planning module — the internal reasoning layer for a personal AI assistant. Analyze the latest request in context of the conversation, assign the right response model, and produce a structured execution plan.
 
-        Available capabilities:
-        {capabilities_str}
+Available capabilities:
+{capabilities_str}
 
-        Rules:
-        - Only use capabilities from the list above
-        - Think step by step about what is needed to fulfill the request
-        - If the request needs no external action (e.g. simple Q&A, math, writing, general knowledge), return an empty array
-        - Any question about Nora's own capabilities, tools, or limitations MUST use the introspect capability — never answer from general knowledge
-        - Keep steps minimal — don't add steps that aren't necessary
-        - Output raw JSON only, no explanation
+Model tiers:
+- "fast": cheap, low-latency (simple Q&A, math, text transformation)
+- "smart": high reasoning (multi-step planning, complex analysis, research)
+- "vision": image or visual content understanding
 
-        Output a JSON array of steps:
-        [
-            {{"capability": "<capability_name>", "input": "<what to pass to it>"}}
-        ]
+Rules:
+- Only use capabilities from the list above
+- Think step by step about what is needed to fulfill the request
+- If the request needs no external action (e.g. simple Q&A, math, writing, general knowledge), return an empty plan array
+- Any question about Nora's own capabilities, tools, or limitations MUST use the introspect capability — never answer from general knowledge
+- Keep steps minimal — don't add steps that aren't necessary
+- Output raw JSON only, no explanation
 
-        User request: {last_msg}
-        """
+Output format:
+{{
+    "responder_model": "fast" | "smart" | "vision",
+    "plan": [
+        {{"capability": "<capability_name>", "input": "<what to pass to it>"}}
+    ]
+}}
+
+Conversation so far:
+{conversation}
+"""
         }
     ])
 
     try:
         clean = (result_json or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        plan = json.loads(clean) if clean else []
+        result = json.loads(clean) if clean else {}
     except json.JSONDecodeError:
-        plan = []
-    return PlannerOutput(plan=plan)
+        result = {}
+
+    return PlannerOutput(
+        responder_model=result.get('responder_model', 'fast'),
+        plan=result.get('plan', []),
+    )
