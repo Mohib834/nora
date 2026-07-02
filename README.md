@@ -2,7 +2,7 @@
 
 **An open-source, capability-driven personal AI platform. Build your own Friday.**
 
-Nora is not a chatbot. Not a workflow tool. A persistent, capable, evolving personal AI — designed to feel like Friday from Iron Man. She plans, executes, remembers across sessions, and gets smarter over time.
+Nora is a persistent, capable, evolving personal AI **agent** — designed to feel like Friday from Iron Man. Not a scripted assistant, not a workflow tool: she plans, executes, remembers across sessions, and gets smarter over time.
 
 ---
 
