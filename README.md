@@ -2,31 +2,52 @@
 
 **An open-source, capability-driven personal AI platform. Build your own Friday.**
 
-Nora is not a chatbot. Not a workflow tool. A persistent, capable, evolving personal AI — designed to feel like Friday from Iron Man. She plans, executes, remembers, and gets smarter over time.
+Nora is not a chatbot. Not a workflow tool. A persistent, capable, evolving personal AI — designed to feel like Friday from Iron Man. She plans, executes, remembers across sessions, and gets smarter over time.
 
 ---
 
 ## How it works
 
-Every request flows through a four-node graph:
+Every request flows through a graph. `recall` and `planner` run **in parallel** from the start, join at a barrier, then route to the executor loop or straight to the responder. After Nora replies, `reflect` distills the turn into long-term memory — off the critical path, so it never slows the response.
 
 ```mermaid
 graph LR
-    A([User]) --> B[Classifier]
-    B --> C[Planner]
-    C -->|has plan| D[Executor]
-    C -->|no tools needed| E[Responder]
-    D -->|more steps| D
-    D -->|plan complete| E
-    E --> F([Nora])
+    A([User]) --> R[Recall]
+    A --> P[Planner]
+    R --> D[Dispatch]
+    P --> D
+    D -->|has plan| E[Executor]
+    D -->|no tools needed| RE[Responder]
+    E -->|more steps| E
+    E -->|plan complete| RE
+    RE --> N([Nora])
+    RE -.background.-> RF[Reflect]
+    RF -.writes.-> M[(Knowledge Graph)]
 ```
 
-- **Classifier** — reads the request, assigns model tiers (fast vs smart) based on complexity
-- **Planner** — generates a structured execution plan using available capabilities
-- **Executor** — runs the tools, loops until the plan is complete
-- **Responder** — synthesizes results and replies as Nora
+- **Recall** — searches long-term memory and loads relevant context into state before Nora responds (runs in parallel with the planner)
+- **Planner** — a single LLM call that classifies complexity, assigns a model tier (fast / smart / vision), and generates a dynamic execution plan. Returns an empty plan for simple requests, skipping the executor entirely
+- **Dispatch** — a sync barrier that joins the parallel `recall` + `planner` branches before routing
+- **Executor** — runs the planned capabilities, looping until the plan is complete
+- **Responder** — synthesizes results and replies as Nora, streaming token-by-token
+- **Reflect** — after the reply, distills the turn (intent, outcome, capability gaps) into the knowledge graph as a background task
 
 The graph is built on [LangGraph](https://github.com/langchain-ai/langgraph). State flows through every node — no hidden side effects.
+
+---
+
+## Memory
+
+Nora has two complementary memory layers:
+
+| Layer | Technology | What it stores |
+|---|---|---|
+| Conversation checkpointing | SQLite + LangGraph `AsyncSqliteSaver` | Full message history for the current thread |
+| Long-term semantic memory | [Graphiti](https://github.com/getzep/graphiti) + embedded FalkorDB | Distilled knowledge — entities, relationships, capability gaps |
+
+**One eternal thread.** Nora is always-on. A single constant `thread_id` — no session boundaries, no reset between conversations.
+
+The knowledge graph tracks seven entity types (`memory/schema.py`): `Person`, `Goal`, `Project`, `Preference`, `CapabilityGap`, `CapabilityInsight`, `RunOutcome`. `CapabilityGap` and `CapabilityInsight` are the foundation of the self-improvement loop — Nora records what she couldn't do so she can learn what to build next.
 
 ---
 
@@ -36,19 +57,31 @@ The graph is built on [LangGraph](https://github.com/langchain-ai/langgraph). St
 nora/
 ├── agent/
 │   ├── state.py              # AgentState — the heart of the system
-│   ├── graph.py              # LangGraph graph assembly
+│   ├── graph.py              # LangGraph graph assembly (parallel fan-out + barrier)
 │   ├── router.py             # Edge routing logic
 │   ├── nodes/
-│   │   ├── classifier.py     # Complexity + model tier assignment
-│   │   ├── planner.py        # Dynamic plan generation
+│   │   ├── recall.py         # Pulls long-term memory before responding
+│   │   ├── planner.py        # Model tier + dynamic plan (one LLM call)
+│   │   ├── dispatch.py       # Sync barrier joining the parallel branches
 │   │   ├── executor.py       # Tool execution loop
-│   │   └── responder.py      # Nora's voice
+│   │   ├── responder.py      # Nora's voice
+│   │   └── reflect.py        # Distills each turn into the knowledge graph
 │   └── capabilities/
-│       └── web_search/       # Search the web
+│       ├── registry.py       # All capabilities registered here
+│       ├── types.py          # Capability type definition
+│       ├── web_search/       # Search the web
+│       └── introspect/       # Nora inspects her own capabilities
+│
+├── memory/
+│   ├── schema.py             # Graphiti entity types
+│   └── store.py              # MemoryStore — write_episode, search, close
+│
+├── config/
+│   ├── settings.py           # Model map + DB paths + thread config
+│   └── logging.py            # Logging setup
 │
 ├── projects/                 # Per-project config (YAML only, no code)
-├── config/
-│   └── settings.py           # Model map
+├── data/                     # Runtime data (gitignored) — SQLite + FalkorDB
 └── main.py                   # CLI entrypoint
 ```
 
@@ -57,6 +90,7 @@ nora/
 - **State is primary** — the graph is not the product, the state is
 - **Capabilities, not features** — every tool cluster is general and reusable
 - **Planner, not router** — Nora generates dynamic plans, not switch statements
+- **Memory from day one** — recall before, reflect after, on every turn
 - **Projects as config** — YAML profiles, zero code changes per project
 
 ---
@@ -78,11 +112,21 @@ OPENAI_API_KEY=your_key_here
 TAVILY_API_KEY=your_key_here
 ```
 
+Optional overrides (sensible defaults are used if unset):
+
+```env
+CONVERSATIONS_DB_PATH=data/nora_conversations.db
+FALKORDB_DB_PATH=data/graph/nora_knowledge.db
+THREAD_ID=thread-1
+```
+
 Run Nora:
 
 ```bash
 uv run python main.py
 ```
+
+FalkorDB runs **embedded** (via `redislite`) — no separate database server to start. The knowledge graph and conversation history are persisted under `data/`.
 
 ---
 
@@ -91,6 +135,7 @@ uv run python main.py
 | Capability | What it does |
 |---|---|
 | `web_search` | Search the internet for up-to-date information |
+| `introspect` | Inspect Nora's own capabilities, execution context, and known project profiles |
 
 More capabilities coming. Contributions welcome.
 
@@ -98,13 +143,21 @@ More capabilities coming. Contributions welcome.
 
 ## Roadmap
 
-- [x] Classifier → Planner → Executor → Responder graph
+- [x] Recall ∥ Planner → Executor → Responder graph
 - [x] Web search capability
+- [x] Introspect capability (Nora knows her own tools)
 - [x] Dynamic model tier selection
-- [ ] Long-term memory (Supabase + pgvector)
+- [x] Merged classifier into planner (single LLM call)
+- [x] Long-term semantic memory (Graphiti + embedded FalkorDB)
+- [x] Recall node — memory context before responding
+- [x] Reflect node — distill each turn into the knowledge graph
+- [x] SQLite conversation persistence (one eternal thread)
+- [ ] Pass memory context into the planner prompt
+- [ ] `compact` node — context window management
+- [ ] MCP bridge — config-driven integrations (`config/mcps.yaml`)
+- [ ] Self-improvement — Nora detects capability gaps, writes the code, opens a PR
 - [ ] FastAPI layer
 - [ ] Multi-project profile support
-- [ ] Self-improvement — Nora identifies and flags capability gaps
 
 ---
 
@@ -121,8 +174,9 @@ That's it. The planner picks it up automatically.
 ## Stack
 
 - Python 3.13
-- [LangGraph](https://github.com/langchain-ai/langgraph)
-- [LangChain](https://github.com/langchain-ai/langchain)
+- [LangGraph](https://github.com/langchain-ai/langgraph) — graph runtime + SQLite checkpointing
+- [LangChain](https://github.com/langchain-ai/langchain) — tool/model abstractions
+- [Graphiti](https://github.com/getzep/graphiti) + FalkorDB Lite (embedded) — long-term semantic memory
 - OpenAI API (GPT-4o / GPT-4o-mini)
 - Tavily (web search)
 
