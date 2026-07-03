@@ -1,10 +1,5 @@
 import os
-
-MODEL_MAP = {
-    "fast": "gpt-4o-mini",
-    "smart": "gpt-4o",
-    "vision": "gpt-4o",
-}
+import yaml
 
 DEFAULT_MODEL = "fast"
 
@@ -19,6 +14,14 @@ NODE_LABELS: dict[str, str] = {
     "planner": "planning",
     "executor": "Running tool",
     "responder": "Responding",
+    "compact": "Running compaction"
 }
 
 PARALLEL_NODES: set[str] = {"recall", "planner"}
+COMPACT_TOKEN_LEN = 16_000
+
+
+def load_config() -> dict:
+    config_path = os.path.join(os.path.dirname(__file__), "..", "nora.yaml")
+    with open(config_path) as f:
+        return (yaml.safe_load(f) or {}).get("nora", {})

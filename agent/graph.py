@@ -9,7 +9,7 @@ from .nodes.dispatch import dispatch_node
 from .router import should_continue
 from memory.store import MemoryStore
 from agent.nodes.recall import make_recall_node
-
+from agent.nodes.compact import compact_node
 
 def build_graph(store: MemoryStore, checkpointer: BaseCheckpointSaver) -> CompiledStateGraph:
     recall_node = make_recall_node(store)
@@ -21,6 +21,7 @@ def build_graph(store: MemoryStore, checkpointer: BaseCheckpointSaver) -> Compil
     graph.add_node("responder", responder_node)
     graph.add_node("recall", recall_node)
     graph.add_node('dispatch', dispatch_node)
+    graph.add_node('compact', compact_node)
 
     graph.add_edge(START, "recall")
     graph.add_edge(START, "planner")
@@ -30,5 +31,8 @@ def build_graph(store: MemoryStore, checkpointer: BaseCheckpointSaver) -> Compil
 
     graph.add_conditional_edges("dispatch", should_continue)
     graph.add_conditional_edges("executor", should_continue)
+    
+    graph.add_edge('responder', 'compact')
+    graph.add_edge('compact', END)
 
     return graph.compile(checkpointer=checkpointer)

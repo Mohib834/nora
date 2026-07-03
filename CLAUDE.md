@@ -253,6 +253,7 @@ Graphiti uses OpenAI `text-embedding-3-small` by default (network call per recal
 - MCP bridge — generic config-driven integration layer (`config/mcps.yaml`)
 - GitHub MCP integration (for self-improvement PR flow)
 - `compact` node — context window management
+- Session marker — inject a system message at startup with current time and gap since last session so Nora treats old messages as history, not current context
 - Parallelize recall + planner (LangGraph fan-out)
 - Tool result caching in executor
 

@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from langgraph.graph.state import CompiledStateGraph, RunnableConfig
 
 from memory.store import MemoryStore
-from utils.openai import aget_llm_answer
+from utils.llm import aget_llm_answer
 
 logger = logging.getLogger(__name__)
 
@@ -36,27 +36,28 @@ async def reflect(store: MemoryStore, app: CompiledStateGraph, config: RunnableC
 
     logger.debug(f"Reflect: turn text:\n{turn_text}")
 
-    prompt = f"""You are Nora's memory module. Distill this conversation turn into a memory episode for Nora's long-term knowledge graph.
+    prompt = f"""You are Nora's memory module. Extract durable facts from this conversation turn for Nora's long-term knowledge graph.
 
-Capture three things in the episode body:
-1. Intent — what Boss actually wanted, not just what was literally asked.
-2. Outcome — what tools ran, what was found, whether Nora fully answered the request.
-3. Capability gaps — if Nora couldn't deliver something, name it explicitly.
+Write only what remains true across sessions. Focus on four categories:
+1. Boss's goals and decisions — what Boss is trying to achieve or has decided
+2. Preferences — how Boss likes things, what matters to them, stated criteria
+3. System state — what capabilities exist, what is being built, current architecture facts
+4. Capability gaps — name the specific missing capability (e.g. "task_automation", "calendar_read"), not vague "Nora couldn't answer X"
 
 Rules:
-- Write in third person: "Boss requested...", "Nora found...", "Nora was unable to..."
-- Be specific — include names, companies, topics, decisions
-- Make gaps explicit, not vague
-- Under 150 words — dense, not verbose
-- Skip if the turn was trivial (a single acknowledgment with no tools and no meaningful content)
+- Write facts, not stories. "Boss is evaluating X" not "Boss requested Nora evaluate X"
+- Never write "Nora found...", "Nora was unable to...", "Nora answered..." — omit execution narration entirely
+- Be specific — include names, decisions, criteria, capability names
+- Under 120 words — dense facts only
+- Skip if the turn has no durable signal (greetings, acknowledgments, trivial confirmations)
 
 Output raw JSON only:
 {{
     "name": "<3-5 word kebab-case topic slug>",
-    "episode_body": "<narrative>" | null
+    "episode_body": "<facts>" | null
 }}
 
-If trivial, return: {{"name": null, "episode_body": null}}
+If no durable facts, return: {{"name": null, "episode_body": null}}
 
 Conversation turn:
 {turn_text}"""
@@ -64,7 +65,7 @@ Conversation turn:
     logger.info("Reflect: calling LLM to distill episode")
 
     try:
-        raw = await aget_llm_answer('gpt-4o-mini', [{'role': 'system', 'content': prompt}])
+        raw = await aget_llm_answer('fast', [{'role': 'system', 'content': prompt}])
         raw = (raw or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
         result = json.loads(raw) if raw else {}
     except Exception as e:

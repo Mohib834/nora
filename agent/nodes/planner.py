@@ -2,7 +2,7 @@ import json
 from typing import TypedDict
 
 from ..state import AgentState
-from utils.openai import get_llm_answer
+from utils.llm import get_llm_answer
 from ..capabilities.registry import ALL_CAPABILITIES
 
 
@@ -27,7 +27,7 @@ def planner_node(state: AgentState) -> PlannerOutput:
         f"- {c['name']}: {c['description']}" for c in ALL_CAPABILITIES
     )
 
-    result_json = get_llm_answer('gpt-4o-mini', [
+    result_json = get_llm_answer('fast', [
         {
             'role': 'system',
             'content': f"""You are Nora's planning module — the internal reasoning layer for a personal AI assistant. Analyze the latest request in context of the conversation, assign the right response model, and produce a structured execution plan.
@@ -38,6 +38,7 @@ Available capabilities:
 Model tiers:
 - "fast": cheap, low-latency (simple Q&A, math, text transformation)
 - "smart": high reasoning (multi-step planning, complex analysis, research)
+- "reasoning": deep chain-of-thought (logic puzzles, debugging, multi-step deduction, architectural decisions)
 - "vision": image or visual content understanding
 
 Rules:

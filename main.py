@@ -8,6 +8,7 @@ setup_logging()
 
 import aiosqlite
 from langchain_core.messages import HumanMessage
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from agent.graph import build_graph
 from agent.nodes.reflect import reflect
@@ -30,19 +31,24 @@ async def main():
         checkpointer = AsyncSqliteSaver(conn)
         app = build_graph(store, checkpointer)
 
+        config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+
         try:
             while True:
                 user_input = await asyncio.get_event_loop().run_in_executor(None, input, "You: ")
 
                 response_content = ""
                 responder_started = False
+                nora_header_printed = False
                 active_parallel: set[str] = set()
+                think_buffer = ""
+                in_think = False
                 status = Status("", console=console)
                 status.start()
 
                 async for event in app.astream_events(
                     {"messages": [HumanMessage(content=user_input)]},
-                    config={"configurable": {"thread_id": thread_id}},
+                    config=config,
                     version="v2",
                 ):
                     event_type = event["event"]
@@ -70,20 +76,71 @@ async def main():
                         if chunk and chunk.content:
                             if not responder_started:
                                 status.stop()
-                                console.print("[bold]Nora:[/bold] ", end="")
                                 responder_started = True
-                            print(chunk.content, end="", flush=True)
-                            response_content += str(chunk.content)
+
+                            think_buffer += str(chunk.content)
+
+                            while think_buffer:
+                                if not in_think:
+                                    if "<think>" in think_buffer:
+                                        idx = think_buffer.index("<think>")
+                                        prefix = think_buffer[:idx]
+                                        if prefix:
+                                            if not nora_header_printed:
+                                                console.print("[bold]Nora:[/bold] ", end="")
+                                                nora_header_printed = True
+                                            print(prefix, end="", flush=True)
+                                            response_content += prefix
+                                        in_think = True
+                                        console.print("\n[dim]▸ thinking[/dim]")
+                                        think_buffer = think_buffer[idx + 7:]
+                                    else:
+                                        safe = think_buffer[:-7] if len(think_buffer) > 7 else ""
+                                        if safe:
+                                            if not nora_header_printed:
+                                                console.print("[bold]Nora:[/bold] ", end="")
+                                                nora_header_printed = True
+                                            print(safe, end="", flush=True)
+                                            response_content += safe
+                                            think_buffer = think_buffer[len(safe):]
+                                        break
+                                else:
+                                    if "</think>" in think_buffer:
+                                        idx = think_buffer.index("</think>")
+                                        think_text = think_buffer[:idx]
+                                        if think_text:
+                                            console.print(think_text, style="dim", end="")
+                                        think_buffer = think_buffer[idx + 9:]
+                                        in_think = False
+                                        console.print()
+                                        if not nora_header_printed:
+                                            console.print("[bold]Nora:[/bold] ", end="")
+                                            nora_header_printed = True
+                                    else:
+                                        safe = think_buffer[:-9] if len(think_buffer) > 9 else ""
+                                        if safe:
+                                            console.print(safe, style="dim", end="")
+                                            think_buffer = think_buffer[len(safe):]
+                                        break
 
                 try:
                     status.stop()
                 except Exception:
                     pass
 
+                if think_buffer:
+                    if in_think:
+                        console.print(think_buffer, style="dim", end="")
+                    else:
+                        if not nora_header_printed:
+                            console.print("[bold]Nora:[/bold] ", end="")
+                        print(think_buffer, end="", flush=True)
+                        response_content += think_buffer
+
                 print()
 
                 # Reflect on the conversation turn and store it in the knowledge graph
-                asyncio.create_task(reflect(store, app, {"configurable": {"thread_id": thread_id}}))
+                asyncio.create_task(reflect(store, app, config))
 
         finally:
             await store.close()
