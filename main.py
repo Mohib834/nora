@@ -27,38 +27,44 @@ def main():
         status = Status("", console=console)
         status.start()
 
-        for stream_mode, data in app.stream(
-            {"messages": [HumanMessage(content=user_input)]},
-            config={
-                "configurable": {
-                    "thread_id": thread_id
-                }
-            },
-            stream_mode=["messages", "updates"],
-        ):
-            if stream_mode == "updates" and isinstance(data, dict):
-                node = list(data.keys())[0]
-                if node != "responder":
-                    label = NODE_LABELS.get(node, node)
-                    if node == "executor":
-                        tool_name = data[node].get("current_tool", "")
-                        label = f"running tool: {tool_name}"
-                    status.update(f"[dim]{label}...[/dim]")
+        try:
+          stream = app.stream(
+              {"messages": [HumanMessage(content=user_input)]},
+              config={"configurable": {"thread_id": thread_id}},
+              stream_mode=["messages", "updates"],
+          )
+        except Exception as e:
+            status.stop()
+            console.print(f"[red]Error:[/red] {e}")
+            continue
 
-            elif stream_mode == "messages":
-                chunk, metadata = data
-                if (
-                    isinstance(chunk, AIMessageChunk)
-                    and chunk.content
-                    and isinstance(metadata, dict)
-                    and metadata.get("langgraph_node") == "responder"
-                ):
-                    if not responder_started:
-                        status.stop()
-                        console.print("[bold]Nora:[/bold] ", end="")
-                        responder_started = True
-                    print(chunk.content, end="", flush=True)
-                    response_content += str(chunk.content)
+        try:
+            for stream_mode, data in stream:
+                if stream_mode == "updates" and isinstance(data, dict):
+                    node = list(data.keys())[0]
+                    if node != "responder":
+                        label = NODE_LABELS.get(node, node)
+                        if node == "executor":
+                            tool_name = data[node].get("current_tool", "")
+                            label = f"running tool: {tool_name}"
+                        status.update(f"[dim]{label}...[/dim]")
+
+                elif stream_mode == "messages":
+                    chunk, metadata = data
+                    if (
+                        isinstance(chunk, AIMessageChunk)
+                        and chunk.content
+                        and isinstance(metadata, dict)
+                        and metadata.get("langgraph_node") == "responder"
+                    ):
+                        if not responder_started:
+                            status.stop()
+                            console.print("[bold]Nora:[/bold] ", end="")
+                            responder_started = True
+                        print(chunk.content, end="", flush=True)
+                        response_content += str(chunk.content)
+        except Exception as e:
+            console.print(f"\n[red]Error:[/red] {e}")
 
         try:
             status.stop()
