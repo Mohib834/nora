@@ -1,7 +1,7 @@
 import json
 from ..state import AgentState
 from typing import TypedDict
-from utils.openai import get_llm_answer
+from utils.llm import get_llm_answer
 from config.settings import MODEL_MAP, DEFAULT_MODEL
 from ..capabilities.registry import ALL_CAPABILITIES
 

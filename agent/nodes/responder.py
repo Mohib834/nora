@@ -11,7 +11,8 @@ def responder_node(state: AgentState) -> ResponderOutput:
     tier = state.get('responder_model', DEFAULT_MODEL)
     model = MODEL_MAP.get(tier, MODEL_MAP[DEFAULT_MODEL])
 
-    chat_model = init_chat_model(model=model)
+    provider = "anthropic" if model.startswith("claude") else "openai"
+    chat_model = init_chat_model(model=model, model_provider=provider)
 
     system = SystemMessage(content='''You are Nora, a highly capable personal AI assistant to Mohib Arshi (you call him "Boss").
 

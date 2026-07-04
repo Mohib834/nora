@@ -1,8 +1,8 @@
 import json
 
 from ..state import AgentState
-from utils.openai import get_llm_answer
-from config.settings import DEFAULT_MODEL
+from utils.llm import get_llm_answer
+from config.settings import DEFAULT_MODEL, MODEL_MAP
 from typing import TypedDict
 
 class ClassifierOutput(TypedDict):
@@ -14,7 +14,7 @@ def classifier_node(state: AgentState) -> ClassifierOutput:
 
     last_msg_content = state['messages'][-1].content
 
-    result_json = get_llm_answer('gpt-4o-mini', [
+    result_json = get_llm_answer(MODEL_MAP[DEFAULT_MODEL], [
         {"role": 'system',
          "content": f'''
             Classify the user's request and assign the appropriate model tier for each stage.
