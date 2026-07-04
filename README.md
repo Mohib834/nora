@@ -8,7 +8,7 @@ Nora is not a chatbot. Not a workflow tool. A persistent, capable, evolving pers
 
 ## How it works
 
-Every request flows through a graph. `recall` and `planner` run **in parallel** from the start, join at a barrier, then route to the executor loop or straight to the responder. After Nora replies, `reflect` distills the turn into long-term memory — off the critical path, so it never slows the response.
+Every request flows through a graph. `recall` and `planner` run **in parallel** from the start, join at a barrier, then route to the executor loop or straight to the responder. After Nora replies, `compact` trims the conversation window, then `reflect` distills the turn into long-term memory — off the critical path, so it never slows the response.
 
 ```mermaid
 graph LR
@@ -20,8 +20,9 @@ graph LR
     D -->|no tools needed| RE[Responder]
     E -->|more steps| E
     E -->|plan complete| RE
-    RE --> N([Nora])
-    RE -.background.-> RF[Reflect]
+    RE --> C[Compact]
+    C --> N([Nora])
+    C -.background.-> RF[Reflect]
     RF -.writes.-> M[(Knowledge Graph)]
 ```
 
@@ -30,7 +31,8 @@ graph LR
 - **Dispatch** — a sync barrier that joins the parallel `recall` + `planner` branches before routing
 - **Executor** — runs the planned capabilities, looping until the plan is complete
 - **Responder** — synthesizes results and replies as Nora, streaming token-by-token
-- **Reflect** — after the reply, distills the turn (intent, outcome, capability gaps) into the knowledge graph as a background task
+- **Compact** — after the reply, counts tokens in the conversation window using `tiktoken` and drops the oldest messages when the thread exceeds the threshold (16K tokens by default). Keeps costs flat and prevents context overflow as the thread grows
+- **Reflect** — distills the turn (intent, outcome, capability gaps) into the knowledge graph as a background task — runs after compact, never blocks the response
 
 The graph is built on [LangGraph](https://github.com/langchain-ai/langgraph). State flows through every node — no hidden side effects.
 
@@ -65,7 +67,8 @@ nora/
 │   │   ├── dispatch.py       # Sync barrier joining the parallel branches
 │   │   ├── executor.py       # Tool execution loop
 │   │   ├── responder.py      # Nora's voice
-│   │   └── reflect.py        # Distills each turn into the knowledge graph
+│   │   ├── compact.py        # Token-based context window trimming (post-response)
+│   │   └── reflect.py        # Distills each turn into the knowledge graph (background)
 │   └── capabilities/
 │       ├── registry.py       # All capabilities registered here
 │       ├── types.py          # Capability type definition
@@ -123,7 +126,7 @@ THREAD_ID=thread-1
 Run Nora:
 
 ```bash
-uv run python main.py
+uv run main.py
 ```
 
 FalkorDB runs **embedded** (via `redislite`) — no separate database server to start. The knowledge graph and conversation history are persisted under `data/`.
@@ -152,8 +155,7 @@ More capabilities coming. Contributions welcome.
 - [x] Recall node — memory context before responding
 - [x] Reflect node — distill each turn into the knowledge graph
 - [x] SQLite conversation persistence (one eternal thread)
-- [ ] Pass memory context into the planner prompt
-- [ ] `compact` node — context window management
+- [x] `compact` node — token-based context window management
 - [ ] MCP bridge — config-driven integrations (`config/mcps.yaml`)
 - [ ] Self-improvement — Nora detects capability gaps, writes the code, opens a PR
 - [ ] FastAPI layer
@@ -177,7 +179,7 @@ That's it. The planner picks it up automatically.
 - [LangGraph](https://github.com/langchain-ai/langgraph) — graph runtime + SQLite checkpointing
 - [LangChain](https://github.com/langchain-ai/langchain) — tool/model abstractions
 - [Graphiti](https://github.com/getzep/graphiti) + FalkorDB Lite (embedded) — long-term semantic memory
-- OpenAI API (GPT-4o / GPT-4o-mini)
+- OpenAI API — model tier configured in `nora.yaml` (fast / smart / reasoning / vision)
 - Tavily (web search)
 
 ---
