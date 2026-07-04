@@ -74,9 +74,12 @@ uv sync
 Create a `.env` file:
 
 ```env
-OPENAI_API_KEY=your_key_here
+OPENAI_API_KEY=your_key_here       # required if using OpenAI models
+ANTHROPIC_API_KEY=your_key_here    # required if using Claude models
 TAVILY_API_KEY=your_key_here
 ```
+
+Nora supports both OpenAI and Anthropic out of the box. Switch providers by changing the model names in `config/settings.py` — model names starting with `gpt-` use OpenAI, `claude-` use Anthropic.
 
 Run Nora:
 
@@ -123,7 +126,7 @@ That's it. The planner picks it up automatically.
 - Python 3.13
 - [LangGraph](https://github.com/langchain-ai/langgraph)
 - [LangChain](https://github.com/langchain-ai/langchain)
-- OpenAI API (GPT-4o / GPT-4o-mini)
+- OpenAI API (GPT-4o / GPT-4o-mini) or Anthropic API (Claude Haiku / Sonnet)
 - Tavily (web search)
 
 ---
