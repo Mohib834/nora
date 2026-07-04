@@ -1,0 +1,27 @@
+nora:
+  models:
+    fast: gpt-5.4-nano
+    smart: gpt-5.4
+    reasoning: gpt-5.5
+    vision: gpt-5.4
+
+# --- Groq ---
+# models:
+#   fast: groq/llama-3.1-8b-instant
+#   smart: groq/llama-3.3-70b-versatile
+#   reasoning: groq/qwen-qwq-32b
+
+# --- Ollama / fully local ---
+# models:
+#   fast: ollama/llama3.2
+#   smart: ollama/llama3.1:70b
+#   reasoning: ollama/deepseek-r1:70b
+
+# --- OpenAI-compatible local server (e.g. LM Studio, vLLM) ---
+# models:
+#   fast:
+#     model: openai/mistral-7b
+#     base_url: http://localhost:1234/v1
+#   smart:
+#     model: openai/llama3
+#     base_url: http://localhost:1234/v1

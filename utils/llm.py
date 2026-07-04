@@ -1,47 +1,46 @@
-import os
-from typing import Iterable
+from langchain.chat_models import init_chat_model
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+
+from config.settings import DEFAULT_MODEL, load_config
+
+_CONFIG = load_config()
+_MODEL_MAP = _CONFIG.get("models", {})
 
 
-def get_llm_answer(model: str, msgs: Iterable[dict]) -> str:
-    if not model:
-        raise ValueError('Missing model argument')
-    if not msgs:
-        raise ValueError('Missing msgs argument')
-
-    msgs = list(msgs)
-
-    if model.startswith("claude"):
-        return _anthropic_answer(model, msgs)
-    else:
-        return _openai_answer(model, msgs)
+def _resolve(tier: str) -> tuple[str, str | None]:
+    entry = _MODEL_MAP.get(tier) or _MODEL_MAP.get(DEFAULT_MODEL) or "gpt-4o-mini"
+    if isinstance(entry, dict):
+        return entry.get("model", "gpt-4o-mini"), entry.get("base_url")
+    return entry, None
 
 
-def _openai_answer(model: str, msgs: list[dict]) -> str:
-    from openai import OpenAI
-    client = OpenAI()
-    completion = client.chat.completions.create(model=model, messages=msgs)
-    return completion.choices[0].message.content
+def _to_lc_messages(msgs) -> list[BaseMessage]:
+    role_map: dict[str, type[BaseMessage]] = {
+        "system": SystemMessage,
+        "user": HumanMessage,
+        "human": HumanMessage,
+        "assistant": AIMessage,
+    }
+    return [role_map[m["role"]](content=m["content"]) for m in msgs]
 
 
-def _anthropic_answer(model: str, msgs: list[dict]) -> str:
-    import anthropic
-    client = anthropic.Anthropic()
+def get_chat_model(tier: str):
+    model_str, base_url = _resolve(tier)
+    provider, model = model_str.split("/", 1) if "/" in model_str else (None, model_str)
+    if provider and base_url:
+        return init_chat_model(model=model, model_provider=provider, base_url=base_url)
+    if provider:
+        return init_chat_model(model=model, model_provider=provider)
+    if base_url:
+        return init_chat_model(model=model, base_url=base_url)
+    return init_chat_model(model=model)
 
-    system_prompt = ""
-    user_msgs = []
-    for m in msgs:
-        if m["role"] == "system":
-            system_prompt = m["content"]
-        else:
-            user_msgs.append(m)
 
-    if not user_msgs:
-        user_msgs = [{"role": "user", "content": system_prompt}]
-        system_prompt = ""
+def get_llm_answer(tier: str, msgs) -> str:
+    response = get_chat_model(tier).invoke(_to_lc_messages(msgs))
+    return str(response.content)
 
-    kwargs = {"model": model, "max_tokens": 1024, "messages": user_msgs}
-    if system_prompt:
-        kwargs["system"] = system_prompt
 
-    response = client.messages.create(**kwargs)
-    return response.content[0].text
+async def aget_llm_answer(tier: str, msgs) -> str:
+    response = await get_chat_model(tier).ainvoke(_to_lc_messages(msgs))
+    return str(response.content)
