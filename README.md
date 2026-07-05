@@ -111,7 +111,8 @@ uv sync
 Create a `.env` file:
 
 ```env
-OPENAI_API_KEY=your_key_here
+OPENAI_API_KEY=your_key_here       # required if using OpenAI models
+ANTHROPIC_API_KEY=your_key_here    # required if using Claude models
 TAVILY_API_KEY=your_key_here
 ```
 
@@ -122,6 +123,8 @@ CONVERSATIONS_DB_PATH=data/nora_conversations.db
 FALKORDB_DB_PATH=data/graph/nora_knowledge.db
 THREAD_ID=thread-1
 ```
+
+Nora supports both OpenAI and Anthropic out of the box. Switch providers by editing the `models` section in `nora.yaml` — use `gpt-4o-mini` for OpenAI or `anthropic/claude-haiku-4-5-20251001` for Anthropic.
 
 Run Nora:
 
@@ -180,6 +183,8 @@ That's it. The planner picks it up automatically.
 - [LangChain](https://github.com/langchain-ai/langchain) — tool/model abstractions
 - [Graphiti](https://github.com/getzep/graphiti) + FalkorDB Lite (embedded) — long-term semantic memory
 - OpenAI API — model tier configured in `nora.yaml` (fast / smart / reasoning / vision)
+- [LangGraph](https://github.com/langchain-ai/langgraph)
+- OpenAI API (GPT-4o / GPT-4o-mini) or Anthropic API (Claude Haiku / Sonnet)
 - Tavily (web search)
 
 ---
