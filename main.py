@@ -46,11 +46,12 @@ async def main():
                 status = Status("", console=console)
                 status.start()
 
-                async for event in app.astream_events(
-                    {"messages": [HumanMessage(content=user_input)]},
-                    config=config,
-                    version="v2",
-                ):
+                try:
+                  async for event in app.astream_events(
+                      {"messages": [HumanMessage(content=user_input)]},
+                      config=config,
+                      version="v2",
+                  ):
                     event_type = event["event"]
                     node_name = event.get("metadata", {}).get("langgraph_node", "")
 
@@ -122,6 +123,8 @@ async def main():
                                             console.print(safe, style="dim", end="")
                                             think_buffer = think_buffer[len(safe):]
                                         break
+                except Exception as e:
+                    console.print(f"\n[red]Error:[/red] {e}")
 
                 try:
                     status.stop()
