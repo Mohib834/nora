@@ -8,9 +8,9 @@ _MODEL_MAP = _CONFIG.get("models", {})
 
 
 def _resolve(tier: str) -> tuple[str, str | None]:
-    entry = _MODEL_MAP.get(tier) or _MODEL_MAP.get(DEFAULT_MODEL) or "gpt-4o-mini"
+    entry = _MODEL_MAP.get(tier) or _MODEL_MAP.get(DEFAULT_MODEL) or "gpt-5.4-nano"
     if isinstance(entry, dict):
-        return entry.get("model", "gpt-4o-mini"), entry.get("base_url")
+        return entry.get("model", "gpt-5.4-nano"), entry.get("base_url")
     return entry, None
 
 

@@ -30,9 +30,9 @@ graph LR
 - **Planner** — a single LLM call that classifies complexity, assigns a model tier (fast / smart / vision), and generates a dynamic execution plan. Returns an empty plan for simple requests, skipping the executor entirely
 - **Dispatch** — a sync barrier that joins the parallel `recall` + `planner` branches before routing
 - **Executor** — runs the planned capabilities, looping until the plan is complete
-- **Responder** — synthesizes results and replies as Nora, streaming token-by-token
+- **Responder** — synthesizes results and replies as Nora, streaming token-by-token. Uses recalled `memory_context` to personalise the response, and injects the current time plus the gap since the user was last active — so Nora is always temporally aware
 - **Compact** — after the reply, counts tokens in the conversation window using `tiktoken` and drops the oldest messages when the thread exceeds the threshold (16K tokens by default). Keeps costs flat and prevents context overflow as the thread grows
-- **Reflect** — distills the turn (intent, outcome, capability gaps) into the knowledge graph as a background task — runs after compact, never blocks the response
+- **Reflect** — distills the turn (intent, outcome, capability gaps) into the knowledge graph. Fired by the main loop as `asyncio.create_task` after the event stream ends — never blocks the response
 
 The graph is built on [LangGraph](https://github.com/langchain-ai/langgraph). State flows through every node — no hidden side effects.
 
@@ -121,7 +121,13 @@ Optional overrides (sensible defaults are used if unset):
 CONVERSATIONS_DB_PATH=data/nora_conversations.db
 FALKORDB_DB_PATH=data/graph/nora_knowledge.db
 THREAD_ID=thread-1
+
+# LangSmith — enables tracing for memory reads/writes (optional)
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=your_langsmith_key_here
 ```
+
+Logs are written to `data/nora.log` on every run (always-on, no env var needed).
 
 Run Nora:
 
@@ -153,9 +159,12 @@ More capabilities coming. Contributions welcome.
 - [x] Merged classifier into planner (single LLM call)
 - [x] Long-term semantic memory (Graphiti + embedded FalkorDB)
 - [x] Recall node — memory context before responding
-- [x] Reflect node — distill each turn into the knowledge graph
+- [x] Reflect node — distill each turn into the knowledge graph (background task)
 - [x] SQLite conversation persistence (one eternal thread)
 - [x] `compact` node — token-based context window management
+- [x] Session awareness — responder tracks `last_active_at` and injects temporal context on every turn
+- [x] Persistent file logging to `data/nora.log`
+- [x] LangSmith observability — `@traceable` on memory read/write paths
 - [ ] MCP bridge — config-driven integrations (`config/mcps.yaml`)
 - [ ] Self-improvement — Nora detects capability gaps, writes the code, opens a PR
 - [ ] FastAPI layer
@@ -181,6 +190,7 @@ That's it. The planner picks it up automatically.
 - [Graphiti](https://github.com/getzep/graphiti) + FalkorDB Lite (embedded) — long-term semantic memory
 - OpenAI API — model tier configured in `nora.yaml` (fast / smart / reasoning / vision)
 - Tavily (web search)
+- [LangSmith](https://smith.langchain.com) — optional observability for memory traces
 
 ---
 

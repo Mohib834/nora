@@ -47,6 +47,7 @@ Rules:
 - If the request needs no external action (e.g. simple Q&A, math, writing, general knowledge), return an empty plan array
 - Any question about Nora's own capabilities, tools, or limitations MUST use the introspect capability — never answer from general knowledge
 - Keep steps minimal — don't add steps that aren't necessary
+- If the message is a greeting, filler, acknowledgement, or has no clear task intent (e.g. "hey", "ok", "thanks", "cool"), always use "fast" and return an empty plan
 - Output raw JSON only, no explanation
 
 Output format:

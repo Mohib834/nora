@@ -17,10 +17,10 @@ def build_graph(store: MemoryStore, checkpointer: BaseCheckpointSaver) -> Compil
     graph = StateGraph(AgentState)
 
     graph.add_node("planner", planner_node)
-    graph.add_node("executor", executor_node)
-    graph.add_node("responder", responder_node)
     graph.add_node("recall", recall_node)
     graph.add_node('dispatch', dispatch_node)
+    graph.add_node("executor", executor_node)
+    graph.add_node("responder", responder_node)
     graph.add_node('compact', compact_node)
 
     graph.add_edge(START, "recall")
@@ -31,7 +31,7 @@ def build_graph(store: MemoryStore, checkpointer: BaseCheckpointSaver) -> Compil
 
     graph.add_conditional_edges("dispatch", should_continue)
     graph.add_conditional_edges("executor", should_continue)
-    
+
     graph.add_edge('responder', 'compact')
     graph.add_edge('compact', END)
 

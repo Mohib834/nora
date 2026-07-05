@@ -146,15 +146,20 @@ The same capability system must work for every project without code changes.
 ## Graph Structure
 
 ```
-START → recall → planner → executor (loop) → responder → reflect → compact → END
+START → recall ┐
+               ├→ dispatch → executor (loop) → responder → compact → END
+START → planner ┘
 ```
 
-- **recall** — pulls relevant long-term memory into `state['memory_context']` before planning
-- **planner** — single LLM call: classifies complexity, assigns `responder_model`, generates execution plan. Returns `[]` plan for simple requests, skipping executor entirely.
+Reflect runs as a background task from `main.py` (`asyncio.create_task`) after each turn — not a graph node, because it needs the compiled `app` reference to snapshot state.
+
+- **recall** — pulls relevant long-term memory into `state['memory_context']` before planning. Runs in parallel with planner (fan-out).
+- **planner** — single LLM call: classifies complexity, assigns `responder_model`, generates execution plan. Runs in parallel with recall. Returns `[]` plan for simple requests, skipping executor entirely. Uses previous turn's `memory_context` from state (current turn's recall runs in parallel).
+- **dispatch** — sync barrier node; waits for both recall and planner to finish before routing continues.
 - **executor** — runs tools, loops until plan is complete
-- **responder** — synthesizes results and replies as Nora
-- **reflect** — LLM call that distills the run into Graphiti episodes (MUST run before compact)
+- **responder** — synthesizes results and replies as Nora. Uses `memory_context` from state to personalise and ground the response.
 - **compact** — trims message history to prevent context overflow
+- **reflect** (background) — LLM call that distills the turn into Graphiti episodes. Called via `asyncio.create_task` in `main.py` after the event stream ends.
 
 **Thread model:** One eternal thread. Single constant `thread_id`. No session boundaries.
 Nora is always-on — she doesn't reset between conversations.
@@ -213,9 +218,9 @@ Every request goes through sequential LLM API calls — each one adds 500-1000ms
 ### Completed Optimizations
 - **Merged classifier + planner** — was 2 sequential LLM calls (classify → plan), now 1. Simple requests: 2 total LLM calls (planner + responder). Complex: 3 (planner + tools + responder).
 - **`astream_events` with `on_chain_start`** — node labels now show when a node begins, not when it ends. UI reflects real-time state.
+- **Parallelized recall + planner** — recall and planner fan out from START via a `dispatch` barrier node. Saves one full sequential hop on every request.
 
 ### Planned Optimizations
-- **Parallelize recall + planner** — recall and planner have no dependency (planner doesn't use `memory_context` yet). Run them simultaneously via LangGraph fan-out. Saves one full sequential hop on every request.
 - **Tool result caching** — cache executor results with a TTL. Identical tool calls (same capability + input) within a window return the cached result. Zero tool latency on repeated queries.
 - **Adaptive plan caching** — after enough turns, Nora recognises recurring request patterns and reuses their plans directly, skipping the planner call.
 
@@ -227,7 +232,7 @@ The deeper fix isn't faster responses — it's making the question irrelevant by
 - **Push model** — for known recurring needs (morning briefing, email digest, project status), pre-compute and surface proactively. Zero request latency because the answer already exists.
 
 ### Embedding Model
-Graphiti uses OpenAI `text-embedding-3-small` by default (network call per recall). Local alternative: `nomic-embed-text` via Ollama (~137M params, ~274MB VRAM, CPU-capable). Quality is comparable for conversational memory retrieval. **Switching embedding models requires re-embedding all existing graph data** — the two vector spaces are incompatible. Migrate only when the memory store is empty or schedule a full re-index. Once recall is parallelized with planner, embedding latency is off the critical path anyway — the primary reason to switch becomes cost and data privacy, not speed.
+Graphiti uses OpenAI `text-embedding-3-small` by default (network call per recall). Local alternative: `nomic-embed-text` via Ollama (~137M params, ~274MB VRAM, CPU-capable). Quality is comparable for conversational memory retrieval. **Switching embedding models requires re-embedding all existing graph data** — the two vector spaces are incompatible. Migrate only when the memory store is empty or schedule a full re-index. Since recall is parallelized with planner, embedding latency is already off the critical path — the primary reason to switch is cost and data privacy, not speed.
 
 ## Milestones
 
@@ -240,21 +245,21 @@ Graphiti uses OpenAI `text-embedding-3-small` by default (network call per recal
 - [x] SQLite conversation persistence (one eternal thread)
 - [x] Merged classifier into planner — single LLM call for model tier + plan
 
-### Milestone 2 (Current)
+### Milestone 2 ✅
+
 - [x] `memory/store.py` — MemoryStore with FalkorDB Lite + Graphiti
 - [x] `agent/nodes/recall.py` — pull memory context before planning
 - [x] Add `memory_context` to `AgentState`
-- [x] Wire recall into `graph.py`
-- [ ] `agent/nodes/reflect.py` — distill run into Graphiti after response
-- [ ] Wire reflect into `graph.py`
-- [ ] Pass `memory_context` into planner prompt
+- [x] Wire recall into `graph.py` (parallel fan-out with planner via dispatch)
+- [x] `agent/nodes/reflect.py` — distills run into Graphiti episodes; called as background task from `main.py`
+- [x] Responder uses `memory_context` to personalise responses — memory is intentionally planner-blind; only the responder grounds replies in recalled context
+- [x] `compact` node — context window management
+- [x] Session marker — `last_active_at` tracked in state; responder calculates the gap and includes current time + last-active time in its system prompt
 
-### Milestone 3
+### Milestone 3 (Current)
+- Session marker — inject a system message at startup with current time and gap since last session so Nora treats old messages as history, not current context
 - MCP bridge — generic config-driven integration layer (`config/mcps.yaml`)
 - GitHub MCP integration (for self-improvement PR flow)
-- `compact` node — context window management
-- Session marker — inject a system message at startup with current time and gap since last session so Nora treats old messages as history, not current context
-- Parallelize recall + planner (LangGraph fan-out)
 - Tool result caching in executor
 
 ### Milestone 4

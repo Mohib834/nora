@@ -35,7 +35,7 @@ async def main():
 
         try:
             while True:
-                user_input = await asyncio.get_event_loop().run_in_executor(None, input, "You: ")
+                user_input = await asyncio.get_event_loop().run_in_executor(None, lambda: console.input("[bold green]You:[/bold green] "))
 
                 response_content = ""
                 responder_started = False
@@ -87,7 +87,7 @@ async def main():
                                         prefix = think_buffer[:idx]
                                         if prefix:
                                             if not nora_header_printed:
-                                                console.print("[bold]Nora:[/bold] ", end="")
+                                                console.print("[bold cyan]Nora:[/bold cyan] ", end="")
                                                 nora_header_printed = True
                                             print(prefix, end="", flush=True)
                                             response_content += prefix
@@ -98,7 +98,7 @@ async def main():
                                         safe = think_buffer[:-7] if len(think_buffer) > 7 else ""
                                         if safe:
                                             if not nora_header_printed:
-                                                console.print("[bold]Nora:[/bold] ", end="")
+                                                console.print("[bold cyan]Nora:[/bold cyan] ", end="")
                                                 nora_header_printed = True
                                             print(safe, end="", flush=True)
                                             response_content += safe
@@ -114,7 +114,7 @@ async def main():
                                         in_think = False
                                         console.print()
                                         if not nora_header_printed:
-                                            console.print("[bold]Nora:[/bold] ", end="")
+                                            console.print("[bold cyan]Nora:[/bold cyan] ", end="")
                                             nora_header_printed = True
                                     else:
                                         safe = think_buffer[:-9] if len(think_buffer) > 9 else ""
@@ -133,7 +133,7 @@ async def main():
                         console.print(think_buffer, style="dim", end="")
                     else:
                         if not nora_header_printed:
-                            console.print("[bold]Nora:[/bold] ", end="")
+                            console.print("[bold cyan]Nora:[/bold cyan] ", end="")
                         print(think_buffer, end="", flush=True)
                         response_content += think_buffer
 

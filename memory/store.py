@@ -4,9 +4,13 @@ from datetime import datetime, timezone
 
 from graphiti_core import Graphiti
 from graphiti_core.driver.falkordb_driver import FalkorDriver
+from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
+from graphiti_core.llm_client.config import LLMConfig
+from graphiti_core.llm_client.openai_client import OpenAIClient
+from langsmith import traceable
 from redislite.async_falkordb_client import AsyncFalkorDB
 
-from config.settings import FALKORDB_DATABASE, FALKORDB_DB_PATH
+from config.settings import FALKORDB_DATABASE, FALKORDB_DB_PATH, load_config
 from memory.schema import ENTITY_TYPES
 
 logger = logging.getLogger(__name__)
@@ -25,7 +29,18 @@ class MemoryStore:
         db = AsyncFalkorDB(dbfilename=FALKORDB_DB_PATH)
         driver = FalkorDriver(falkor_db=db, database=FALKORDB_DATABASE)
 
-        graphiti = Graphiti(graph_driver=driver)
+        _models = load_config().get("models", {})
+        llm_client = OpenAIClient(
+            config=LLMConfig(
+                model=_models.get("smart", "gpt-5.4"),
+                small_model=_models.get("fast", "gpt-5.4-nano"),
+            ),
+            reasoning="",
+        )
+        llm_client.verbosity = None  # verbosity guard is `is not None`, so None skips the param
+        embedder = OpenAIEmbedder(config=OpenAIEmbedderConfig())
+
+        graphiti = Graphiti(graph_driver=driver, llm_client=llm_client, embedder=embedder)
 
         logger.info("Building indices and constraints...")
         await graphiti.build_indices_and_constraints()
@@ -46,6 +61,7 @@ class MemoryStore:
 
         logger.info("MemoryStore closed")
 
+    @traceable(run_type="chain", name="memory.write_episode")
     async def write_episode(self, name: str, episode_body: str, source_description: str) -> None:
         logger.info(f"Writing episode: {name}")
         logger.info(f"Episode body: {episode_body}")
@@ -83,6 +99,7 @@ class MemoryStore:
         )
         return {"nodes": nodes, "edges": edges}
 
+    @traceable(run_type="retriever", name="memory.search")
     async def search(self, content: str, limit: int = 5) -> list[str]:
         logger.info(f"Searching memory: '{content[:50]}' limit={limit}")
 

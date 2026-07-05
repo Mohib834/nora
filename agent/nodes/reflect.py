@@ -1,8 +1,9 @@
 import json
 import logging
 from datetime import datetime, timezone
-
-from langgraph.graph.state import CompiledStateGraph, RunnableConfig
+from agent.state import AgentState
+from langgraph.graph.state import CompiledStateGraph
+from langchain_core.runnables import RunnableConfig
 
 from memory.store import MemoryStore
 from utils.llm import aget_llm_answer
@@ -10,12 +11,12 @@ from utils.llm import aget_llm_answer
 logger = logging.getLogger(__name__)
 
 
-async def reflect(store: MemoryStore, app: CompiledStateGraph, config: RunnableConfig) -> None:
+async def reflect(store: MemoryStore, app: CompiledStateGraph, config:RunnableConfig,) -> None:
     logger.info("Reflect: starting")
-
-    snapshot = await app.aget_state(config)
+    
+    snapshot = await app.aget_state(config=config)
     all_messages = snapshot.values.get("messages", [])
-
+    
     logger.info(f"Reflect: {len(all_messages)} total messages in thread")
 
     turn_start = 0
@@ -39,13 +40,13 @@ async def reflect(store: MemoryStore, app: CompiledStateGraph, config: RunnableC
     prompt = f"""You are Nora's memory module. Extract durable facts from this conversation turn for Nora's long-term knowledge graph.
 
 Write only what remains true across sessions. Focus on four categories:
-1. Boss's goals and decisions — what Boss is trying to achieve or has decided
-2. Preferences — how Boss likes things, what matters to them, stated criteria
+1. User's goals and decisions — what the user is trying to achieve or has decided
+2. Preferences — how the user likes things, what matters to them, stated criteria
 3. System state — what capabilities exist, what is being built, current architecture facts
 4. Capability gaps — name the specific missing capability (e.g. "task_automation", "calendar_read"), not vague "Nora couldn't answer X"
 
 Rules:
-- Write facts, not stories. "Boss is evaluating X" not "Boss requested Nora evaluate X"
+- Write facts, not stories. "User is evaluating X" not "User requested Nora evaluate X"
 - Never write "Nora found...", "Nora was unable to...", "Nora answered..." — omit execution narration entirely
 - Be specific — include names, decisions, criteria, capability names
 - Under 120 words — dense facts only
