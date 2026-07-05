@@ -5,6 +5,13 @@ nora:
     reasoning: gpt-5.5
     vision: gpt-5.4
 
+# --- Anthropic ---
+# models:
+#   fast: anthropic/claude-haiku-4-5-20251001
+#   smart: anthropic/claude-sonnet-4-6
+#   reasoning: anthropic/claude-sonnet-4-6
+#   vision: anthropic/claude-sonnet-4-6
+
 # --- Groq ---
 # models:
 #   fast: groq/llama-3.1-8b-instant
