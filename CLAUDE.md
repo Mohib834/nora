@@ -1,4 +1,4 @@
-# arshi-pa — Personal AI Agent Platform
+# nora — Personal AI Agent Platform
 
 ## Project Vision
 
@@ -86,7 +86,7 @@ Never write a hand-coded capability wrapper just to call an MCP server. That is 
 ## Folder Structure
 
 ```
-arshi-pa/
+nora/
 ├── agent/
 │   ├── state.py              # AgentState — the heart of the system
 │   ├── graph.py              # LangGraph graph assembly

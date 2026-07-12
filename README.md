@@ -27,9 +27,9 @@ graph LR
 ```
 
 - **Recall** — searches long-term memory and loads relevant context into state before Nora responds (runs in parallel with the planner)
-- **Planner** — a single LLM call that classifies complexity, assigns a model tier (fast / smart / vision), and generates a dynamic execution plan. Returns an empty plan for simple requests, skipping the executor entirely
+- **Planner** — classifies the request first: assigns a model tier (fast / smart / reasoning / vision) and decides whether any capability is needed, and which one(s). Only when a capability is needed does a second call bind just those capabilities' tools via native tool-calling to build the plan — simple requests cost one lightweight call and skip the executor entirely
 - **Dispatch** — a sync barrier that joins the parallel `recall` + `planner` branches before routing
-- **Executor** — runs the planned capabilities, looping until the plan is complete
+- **Executor** — runs each planned tool call directly via native tool-calling (`bind_tools`, no hand-parsed JSON), looping until the plan is complete
 - **Responder** — synthesizes results and replies as Nora, streaming token-by-token. Uses recalled `memory_context` to personalise the response, and injects the current time plus the gap since the user was last active — so Nora is always temporally aware
 - **Compact** — after the reply, counts tokens in the conversation window using `tiktoken` and drops the oldest messages when the thread exceeds the threshold (16K tokens by default). Keeps costs flat and prevents context overflow as the thread grows
 - **Reflect** — distills the turn (intent, outcome, capability gaps) into the knowledge graph. Fired by the main loop as `asyncio.create_task` after the event stream ends — never blocks the response
@@ -70,10 +70,11 @@ nora/
 │   │   ├── compact.py        # Token-based context window trimming (post-response)
 │   │   └── reflect.py        # Distills each turn into the knowledge graph (background)
 │   └── capabilities/
-│       ├── registry.py       # All capabilities registered here
+│       ├── registry.py       # Composes native + MCP-bridged capabilities into one list
 │       ├── types.py          # Capability type definition
+│       ├── mcp_bridge.py     # Loads MCP servers from config/mcps.yaml — zero code per integration
 │       ├── web_search/       # Search the web
-│       └── introspect/       # Nora inspects her own capabilities
+│       └── introspect/       # Nora inspects her own capabilities (native + MCP-bridged)
 │
 ├── memory/
 │   ├── schema.py             # Graphiti entity types
@@ -81,6 +82,7 @@ nora/
 │
 ├── config/
 │   ├── settings.py           # Model map + DB paths + thread config
+│   ├── mcps.yaml             # MCP server registry — add integrations here, not in code
 │   └── logging.py            # Logging setup
 │
 ├── projects/                 # Per-project config (YAML only, no code)
@@ -125,7 +127,12 @@ THREAD_ID=thread-1
 # LangSmith — enables tracing for memory reads/writes (optional)
 LANGCHAIN_TRACING_V2=true
 LANGCHAIN_API_KEY=your_langsmith_key_here
+
+# Only needed for MCP servers that require credentials (e.g. the github entry in config/mcps.yaml)
+GITHUB_TOKEN=your_github_token_here
 ```
+
+MCP servers are registered in `config/mcps.yaml` — see the file for the schema. It's environment-specific (local paths, credentials via env vars), so review it before adding your own entries.
 
 Logs are written to `data/nora.log` on every run (always-on, no env var needed).
 
@@ -146,6 +153,8 @@ FalkorDB runs **embedded** (via `redislite`) — no separate database server to 
 | `web_search` | Search the internet for up-to-date information |
 | `introspect` | Inspect Nora's own capabilities, execution context, and known project profiles |
 
+Beyond the native ones above, Nora auto-registers any MCP server listed in `config/mcps.yaml` — zero Python code per integration. For example, adding filesystem access or GitHub operations is just a config entry; the planner sees MCP-bridged capabilities identically to native ones.
+
 More capabilities coming. Contributions welcome.
 
 ---
@@ -165,7 +174,9 @@ More capabilities coming. Contributions welcome.
 - [x] Session awareness — responder tracks `last_active_at` and injects temporal context on every turn
 - [x] Persistent file logging to `data/nora.log`
 - [x] LangSmith observability — `@traceable` on memory read/write paths
-- [ ] MCP bridge — config-driven integrations (`config/mcps.yaml`)
+- [x] MCP bridge — config-driven integrations (`config/mcps.yaml`)
+- [x] Planner migrated to native tool-calling (`bind_tools` / `with_structured_output`) — no more hand-parsed JSON
+- [ ] Tool result caching in the executor
 - [ ] Self-improvement — Nora detects capability gaps, writes the code, opens a PR
 - [ ] FastAPI layer
 - [ ] Multi-project profile support
@@ -187,6 +198,7 @@ That's it. The planner picks it up automatically.
 - Python 3.13
 - [LangGraph](https://github.com/langchain-ai/langgraph) — graph runtime + SQLite checkpointing
 - [LangChain](https://github.com/langchain-ai/langchain) — tool/model abstractions
+- [langchain-mcp-adapters](https://github.com/langchain-ai/langchain-mcp-adapters) + MCP — config-driven external integrations
 - [Graphiti](https://github.com/getzep/graphiti) + FalkorDB Lite (embedded) — long-term semantic memory
 - OpenAI API — model tier configured in `nora.yaml` (fast / smart / reasoning / vision)
 - Tavily (web search)

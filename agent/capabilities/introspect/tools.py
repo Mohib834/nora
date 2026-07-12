@@ -6,12 +6,15 @@
   
 from langchain.tools import tool
 
-@tool
-def get_capabilities():
-    """Returns all registered capabilities Nora can currently invoke, including their names and descriptions."""
-   
-    from agent.capabilities.registry import ALL_CAPABILITIES
-    return [{'name': capability['name'], 'description': capability['description']} for capability in ALL_CAPABILITIES]
+def make_get_capabilities_tool(other_capabilities, self_entry):
+    @tool
+    def get_capabilities():
+        """Returns all registered capabilities Nora can currently invoke, including their names and descriptions."""
+        entries = [{'name': c['name'], 'description': c['description']} for c in other_capabilities]
+        entries.append(self_entry)
+        return entries
+
+    return get_capabilities
    
    
 

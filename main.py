@@ -1,7 +1,10 @@
 import asyncio
 import os
+import warnings
 from dotenv import load_dotenv
 load_dotenv()
+
+warnings.filterwarnings("ignore", message="Pydantic serializer warnings", category=UserWarning)
 
 from config.logging import setup_logging
 setup_logging()
@@ -16,6 +19,8 @@ from rich.console import Console
 from rich.status import Status
 from memory.store import MemoryStore
 from config.settings import NODE_LABELS, PARALLEL_NODES, THREAD_ID, CONVERSATIONS_DB_PATH
+from agent.capabilities.registry import build_all_capabilities
+from agent.capabilities.mcp_bridge import load_mcp_capabilities
 
 
 console = Console()
@@ -26,10 +31,14 @@ async def main():
 
     store = await MemoryStore.create()
     os.makedirs(os.path.dirname(CONVERSATIONS_DB_PATH), exist_ok=True)
+    
+    
+    mcp_capabilities = await load_mcp_capabilities()
+    all_capabilities = build_all_capabilities(mcp_capabilities)
 
     async with aiosqlite.connect(CONVERSATIONS_DB_PATH) as conn:
         checkpointer = AsyncSqliteSaver(conn)
-        app = build_graph(store, checkpointer)
+        app = build_graph(store, checkpointer, all_capabilities)
 
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
 
@@ -62,7 +71,7 @@ async def main():
                             active_parallel.clear()
                             try:
                                 input_data = event["data"].get("input") or {}
-                                tool_name = input_data["plan"][0]["capability"]
+                                tool_name = input_data["plan"][0]["tool"]
                                 label = f"running tool: {tool_name}"
                             except (KeyError, IndexError, TypeError):
                                 label = NODE_LABELS[node_name]

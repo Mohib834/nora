@@ -1,7 +1,12 @@
+from typing import TypeVar, cast
+
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from pydantic import BaseModel
 
 from config.settings import DEFAULT_MODEL, load_config
+
+T = TypeVar("T", bound=BaseModel)
 
 _CONFIG = load_config()
 _MODEL_MAP = _CONFIG.get("models", {})
@@ -40,7 +45,22 @@ def get_llm_answer(tier: str, msgs) -> str:
     response = get_chat_model(tier).invoke(_to_lc_messages(msgs))
     return str(response.content)
 
+def get_llm_structured_answer(tier: str, msgs, schema: type[T]) -> T:
+    return cast(T, get_chat_model(tier).with_structured_output(schema).invoke(_to_lc_messages(msgs)))
+
+
+def get_llm_tool_call_message(tier: str, msgs, tools) -> AIMessage:
+    return get_chat_model(tier).bind_tools(tools).invoke(_to_lc_messages(msgs))
+
 
 async def aget_llm_answer(tier: str, msgs) -> str:
     response = await get_chat_model(tier).ainvoke(_to_lc_messages(msgs))
     return str(response.content)
+
+
+async def aget_llm_structured_answer(tier: str, msgs, schema: type[T]) -> T:
+    return cast(T, await get_chat_model(tier).with_structured_output(schema).ainvoke(_to_lc_messages(msgs)))
+
+
+async def aget_llm_tool_call_message(tier: str, msgs, tools) -> AIMessage:
+    return await get_chat_model(tier).bind_tools(tools).ainvoke(_to_lc_messages(msgs))

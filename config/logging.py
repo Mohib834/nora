@@ -13,7 +13,7 @@ def setup_logging() -> None:
     root.addHandler(file_handler)
 
     for name in ("memory.store", "agent", "agent.nodes.reflect", "config"):
-        logging.getLogger(name).setLevel(logging.INFO)
+        logging.getLogger(name).setLevel(logging.DEBUG)
 
     for name in ("httpx", "httpcore", "openai", "anthropic"):
         logging.getLogger(name).setLevel(logging.WARNING)

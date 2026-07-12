@@ -1,9 +1,9 @@
 from typing import TypedDict
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import ToolMessage
 
 from ..state import AgentState
-from ..capabilities.registry import ALL_CAPABILITIES
+from agent.capabilities.types import Capability
 
 
 class ExecutorOutput(TypedDict):
@@ -12,23 +12,24 @@ class ExecutorOutput(TypedDict):
     current_tool: str
 
 
-def executor_node(state: AgentState) -> ExecutorOutput:
-    plan = state.get("plan", [])
-    step = plan[0]
+def make_executor_node(all_capabilities: list[Capability]):
+    tools_by_name = {}
+    
+    for capability in all_capabilities:
+        for tool in capability["tools"]:
+            tools_by_name[tool.name] = tool
 
-    tool = _find_tool(step["capability"])
-    result = tool.invoke(step["input"])
+    async def executor_node(state: AgentState) -> ExecutorOutput:
+        plan = state.get("plan", [])
+        step = plan[0]
 
-    return ExecutorOutput(
-        messages=[HumanMessage(content=f"Tool result [{step['capability']}]:\n{str(result)}")],
-        plan=plan[1:],
-        current_tool=step["capability"],
-    )
+        tool = tools_by_name[step["tool"]]
+        result = await tool.ainvoke(step["input"])
 
+        return ExecutorOutput(
+            messages=[ToolMessage(content=str(result), tool_call_id=step["id"])],
+            plan=plan[1:],
+            current_tool=step["tool"],
+        )
 
-def _find_tool(capability_name: str):
-    for capability in ALL_CAPABILITIES:
-        if capability["name"] == capability_name:
-            return capability["tools"][0]
-
-    raise ValueError(f"Unknown capability: {capability_name}")
+    return executor_node

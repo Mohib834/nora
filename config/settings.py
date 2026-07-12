@@ -25,3 +25,10 @@ def load_config() -> dict:
     config_path = os.path.join(os.path.dirname(__file__), "..", "nora.yaml")
     with open(config_path) as f:
         return (yaml.safe_load(f) or {}).get("nora", {})
+    
+def load_mcps() -> dict:
+    default_mcp_path = os.path.join(os.path.dirname(__file__), "mcps.yaml")
+    mcp_path =  os.getenv("MCP_CONFIG_PATH", default_mcp_path)
+    
+    with open(mcp_path) as f:
+        return (yaml.safe_load(f) or {}).get("mcps", {})

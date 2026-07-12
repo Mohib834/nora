@@ -25,7 +25,7 @@ class Goal(BaseModel):
 class Project(BaseModel):
     """An active, named piece of work with a defined scope — a codebase, product, or initiative.
     Distinct from a Goal: a project is HOW work is done, a goal is WHY. Extract when a specific
-    named project, repository, or product is discussed. Examples: 'arshi-pa', 'Screenforge'."""
+    named project, repository, or product is discussed. Examples: 'Screenforge'."""
 
     tech_stack: str | None = Field(None, description='Technologies, languages, or frameworks used in this project')
     status: str | None = Field(None, description='Current state: active, paused, or completed')
